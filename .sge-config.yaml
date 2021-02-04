@@ -4,7 +4,7 @@ release_procedures:
     release:
         name: release
         project: IP_Hyperscale
-        procedure: dynamic-procedure-sge
+        procedure: sge-dynamic-procedure
         run_on_forks: False
         target:
             - master
@@ -13,7 +13,7 @@ test_procedures:
     test:
         name: test
         project: IP_Hyperscale
-        procedure: dynamic-procedure-sge
+        procedure: sge-dynamic-procedure
         target:
             - master
 
