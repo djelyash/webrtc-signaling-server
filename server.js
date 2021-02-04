@@ -158,8 +158,17 @@ router.get('/:connectionType/queue', async function(req, res) {
 
 router.post('/connections/:connectionId/stop', jsonParser, async function(req, res) {
     const connectionId = req.params.connectionId;
-    res.status(200).json({"status":"ok"});
 
+    try{
+        const offerResp = await connectionManager.stopConnection(connectionId);
+        logger.info("Connection %s ended!", connectionId);
+        res.status(200).json(offerResp);
+    } catch (error) {
+        res.status(error.errorCode? error.errorCode : 503).json(error);
+        if(error.errorCode >= 500) {
+            logger.error(req.FCID + " : " + JSON.stringify(error));
+        }
+    }
 });
 
 
