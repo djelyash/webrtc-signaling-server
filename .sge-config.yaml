@@ -1,0 +1,24 @@
+config_version: 4
+
+test_procedures:
+    test:
+        name: test
+        project: IP_Hyperscale
+        procedure: dynamic-procedure-sge
+        target:
+            - master
+
+release_procedures:
+    release:
+        name: release
+        project: IP_Hyperscale
+        procedure: dynamic-procedure-sge
+        run_on_forks: False
+        target:
+            - master
+
+reviews:
+    code_review:
+        minimum_approvers: 1
+        super_users:
+            - cswci-gen
