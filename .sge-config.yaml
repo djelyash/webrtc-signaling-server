@@ -9,6 +9,14 @@ release_procedures:
         target:
             - master
 
+test_procedures:
+    test:
+        name: test
+        project: IP_Hyperscale
+        procedure: dynamic-procedure-sge
+        target:
+            - master
+
 reviews:
     code_review:
         minimum_approvers: 1
