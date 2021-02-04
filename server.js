@@ -156,6 +156,12 @@ router.get('/:connectionType/queue', async function(req, res) {
 
 });
 
+router.post('/connections/:connectionId/stop', jsonParser, async function(req, res) {
+    const connectionId = req.params.connectionId;
+    res.status(200).json({"status":"ok"});
+
+});
+
 
 /*
 router.post('/connections/:connectionId/ice', jsonParser, function(req, res) {
