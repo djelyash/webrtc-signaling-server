@@ -3,7 +3,7 @@ config_version: 4
 test_procedures:
     test:
         name: test
-        project: VGW_Centenario
+        project: IP_Hyperscale
         procedure: dynamic-procedure-sge
         target:
             - master
@@ -11,7 +11,7 @@ test_procedures:
 release_procedures:
     release:
         name: release
-        project: VGW_Centenario
+        project: IP_Hyperscale
         procedure: dynamic-procedure-sge
         run_on_forks: False
         target:
