@@ -1,16 +1,19 @@
 config_version: 4
 
 test_procedures:
-    pre_commit:
-        project: VGW_CampNou
-        procedure: Run_universal-precommit
+    test:
+        name: test
+        project: VGW_Centenario
+        procedure: dynamic-procedure-sge
         target:
             - master
 
 release_procedures:
-    create_docker:
-        project: VGW_CampNou
-        procedure: Run_universal-release
+    release:
+        name: release
+        project: VGW_Centenario
+        procedure: dynamic-procedure-sge
+        run_on_forks: False
         target:
             - master
 
