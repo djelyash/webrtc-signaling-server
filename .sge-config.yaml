@@ -9,6 +9,15 @@ release_procedures:
         target:
             - master
 
+    BlackDuck:
+        project: IH_Olympium
+        procedure: release_run_blackduck
+        args:
+            component: ad-broadcast-bundle
+            subcomponent: bundle
+        target:
+            - master
+
 test_procedures:
     test:
         name: test
