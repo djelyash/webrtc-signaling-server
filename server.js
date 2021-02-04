@@ -55,7 +55,15 @@ app.use((req, res, next) => {
     });
 
     next()
-})
+});
+
+app.get('/manage/alive',  function(req, res) {
+    res.status(200).json({"status":"ok"});
+});
+
+app.get('/manage/health',  function(req, res) {
+    res.status(200).json({"status":"ok"});
+});
 
 const apiVersion = '1.0';
 const sigPath = '/signaling/' + apiVersion;

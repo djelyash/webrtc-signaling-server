@@ -1,0 +1,21 @@
+config_version: 4
+
+test_procedures:
+    pre_commit:
+        project: VGW_CampNou
+        procedure: Run_universal-precommit
+        target:
+            - master
+
+release_procedures:
+    create_docker:
+        project: VGW_CampNou
+        procedure: Run_universal-release
+        target:
+            - master
+
+reviews:
+    code_review:
+        minimum_approvers: 1
+        super_users:
+            - cswci-gen

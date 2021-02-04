@@ -1,0 +1,37 @@
+steps:
+  - name: build-image
+    script: |
+      export IMAGE_NAME=webrtc-signaling-server
+      BUNDLE_NAME=hyperscale-services-bundle
+      BUILD_DATE=$(date +%Y%m%d%H%M%S)
+      BRANCH=$(git rev-parse --abbrev-ref HEAD)
+      if [[ $BRANCH == master ]]
+      then
+        MINOR=$(git rev-list --count ${IH_ITERATION}.0-0..) || true
+        MINOR=${MINOR:-0}
+        VERSION=${IH_ITERATION}.${MINOR}-0
+      else
+        VERSION=${BRANCH,,}-${BUILD_DATE}
+      fi
+      docker build -t hyperscale/$IMAGE_NAME:$VERSION --build-arg BUILD_DATE=${BUILD_DATE} --build-arg VCS_REF=$(git rev-parse --short HEAD) --build-arg IMAGE_TAG=$VERSION .
+      T="hyperscale/$IMAGE_NAME:$VERSION"
+      [[ -z $REMOTE_REGISTRY ]] && REMOTE_REGISTRY='spvss-docker.dockerhub.synamedia.com'
+      REMOTE_TAG="${REMOTE_REGISTRY}/${T}"
+      docker tag $T $REMOTE_TAG
+      docker push $REMOTE_TAG
+      git tag "${VERSION}"
+      git push --tags
+      export BRANCH=${BRANCH}
+      export IH_ITERATION=${IH_ITERATION}
+      export IMAGE_VERSION=${VERSION}
+      git clone git@github-chf01.synamedia.com:hyperscale/${BUNDLE_NAME}.git
+      pushd $PWD
+      cd ${BUNDLE_NAME}
+      . ./build-bundle.sh
+      ectool setProperty "/myJobStep/summary" "$BUNDLE_NAME=$BUILD_VERSION"
+      rm -rf ${BUNDLE_NAME}
+cleanup:
+  script: |
+    if [[ -n $IMAGE_TAG ]]
+    then docker rmi $IMAGE_TAG
+    fi
