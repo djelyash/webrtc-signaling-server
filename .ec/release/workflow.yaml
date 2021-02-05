@@ -1,8 +1,8 @@
 steps:
   - name: setup
-        script: |
-          git clone git@github-chf01.synamedia.com:centenario/secrets.git
-          source secrets/secrets.rc
+    script: |
+      git clone git@github-chf01.synamedia.com:centenario/secrets.git
+      source secrets/secrets.rc
   - name: build-image
     script: |
       export IMAGE_NAME=webrtc-signaling-server
