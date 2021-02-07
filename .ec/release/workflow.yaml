@@ -34,6 +34,7 @@ steps:
       . ./build-bundle.sh
       ectool setProperty "/myJobStep/summary" "$BUNDLE_NAME=$BUILD_VERSION"
       rm -rf ${BUNDLE_NAME}
+        
 cleanup:
   script: |
     if [[ -n $IMAGE_TAG ]]
