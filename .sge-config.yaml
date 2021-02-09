@@ -13,7 +13,7 @@ release_procedures:
         project: IH_Olympium
         procedure: release_run_blackduck
         args:
-            component: ad-broadcast-bundle
+            component: webrtc-signalig-server
             subcomponent: bundle
         target:
             - master
