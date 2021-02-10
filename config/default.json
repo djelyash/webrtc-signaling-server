@@ -28,20 +28,20 @@
     }
   },
   "metrics": {
-    "openConnections": {
-      "type": "Counter",
+    "WebRtcOpenConnections": {
+      "type": "Gauge",
       "options": {
-        "name": "Hyperscale opened Connections",
+        "name": "WebRtcOpenConnections",
         "help": "counter of hyperscale connections",
         "labelNames": ["connectionType", "status"]
       }
     }
   },
   "logging": {
-  "componentName": "signaling-server",
-  "level": "info",
-  "silent": false,
-  "humanReadable": false,
-  "ignoredRoutes": ["/manage/health", "/manage/alive", "/manage/metrics"]
-}
+    "componentName": "signaling-server",
+    "level": "info",
+    "silent": false,
+    "humanReadable": false,
+    "ignoredRoutes": ["/manage/health", "/manage/alive", "/manage/metrics"]
+  }
 }

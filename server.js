@@ -11,7 +11,7 @@ const logging = require('logging-utils')(config.logging);
 const logger = logging.mainLogger;
 const { nanoid } = require("nanoid");
 const prometheus = require('prometheus-utils')(config.metrics);
-prometheus.setMetric('openConnections', config.metrics.openConnections.type, config.metrics.openConnections.options);
+prometheus.setMetric('WebRtcOpenConnections', config.metrics.WebRtcOpenConnections.type, config.metrics.WebRtcOpenConnections.options);
 
 
 const log4jsConfig = {
@@ -73,12 +73,12 @@ app.get('/manage/health',  function(req, res) {
     res.status(200).json({"status":"ok"});
 });
 
-app.get('/manage/metrics', (req, res) => {
-    const metrics = prometheus.client.register.metrics();
-    res.setHeader('Content-Type', 'text/plain');
-    res.status(200);
-    res.send(metrics);
+app.get('/manage/metrics', function( req, res) {
+        res.set('Content-Type', prometheus.client.register.contentType);
+        res.end(prometheus.client.register.metrics());
 });
+
+app.use(/^(?!\/manage.*).*/, prometheus.metricsMw);
 
 const apiVersion = '1.0';
 const sigPath = '/signaling/' + apiVersion;
@@ -104,7 +104,7 @@ router.post('/:connectionType/connections', jsonParser, async function(req, res)
     }
 
     try {
-        prometheus.openConnections.inc({ connectionType: connectionType, status: status});
+        prometheus.WebRtcOpenConnections.inc({ connectionType: connectionType, status: status});
     }
     catch (error) {}
 });
