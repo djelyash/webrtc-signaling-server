@@ -6,8 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint index.js examples lib test",
-    "start:server": "node server.js",
-    "start:client": "node index.js"
+    "start:server": "node server.js"
   },
   "author": "",
   "license": "ISC",
@@ -26,6 +25,8 @@
     "nanoid": "^3.1.16",
     "npm": "^6.14.11",
     "request": "^2.88.2",
-    "wrtc": "^0.4.6"
+    "wrtc": "^0.4.6",
+    "prometheus-utils": "https://7783c896a3e8a9ffcd37a843adf06618e58a71e7@github-chf01.synamedia.com/dai/prometheus-utils/tarball/v1.0.3",
+    "logging-utils": "https://7783c896a3e8a9ffcd37a843adf06618e58a71e7@github-chf01.synamedia.com/dai/logging-utils/tarball/v1.0.5"
   }
 }

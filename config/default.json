@@ -26,5 +26,22 @@
       "connectionTtlDays":  7,
       "local": false
     }
-  }
+  },
+  "metrics": {
+    "openConnections": {
+      "type": "Counter",
+      "options": {
+        "name": "Hyperscale opened Connections",
+        "help": "counter of hyperscale connections",
+        "labelNames": ["connectionType", "status"]
+      }
+    }
+  },
+  "logging": {
+  "componentName": "signaling-server",
+  "level": "info",
+  "silent": false,
+  "humanReadable": false,
+  "ignoredRoutes": ["/manage/health", "/manage/alive", "/manage/metrics"]
+}
 }

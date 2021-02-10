@@ -7,7 +7,11 @@ const config = require('config');
 const cors = require('cors');
 const app = express();
 var log4js = require("log4js");
+const logging = require('logging-utils')(config.logging);
+const logger = logging.mainLogger;
 const { nanoid } = require("nanoid");
+const prometheus = require('prometheus-utils')(config.metrics);
+prometheus.setMetric('openConnections', config.metrics.openConnections.type, config.metrics.openConnections.options);
 
 
 const log4jsConfig = {
@@ -22,7 +26,7 @@ const log4jsConfig = {
 };
 
 log4js.configure(log4jsConfig, {});
-var logger = log4js.getLogger("server");
+//var logger = log4js.getLogger("server");
 var connectionManager;
 (
     async () => {
@@ -47,7 +51,11 @@ app.use(cors());
 
 
 app.use((req, res, next) => {
-    req.FCID = nanoid();
+    const FCID = req.headers.flow_context || nanoid();
+    res.set({ 'Access-Control-Allow-Origin': '*', FCID });
+    const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    req.logger = logger.child({ FCID, url: decodeURIComponent(req.url), port: req.socket.localPort, clientIp });
+    req.FCID = FCID;
     logger.info(`${req.FCID} ${req.method} ${req.originalUrl} [REQ]`);
 
     res.on('finish', () => {
@@ -65,6 +73,8 @@ app.get('/manage/health',  function(req, res) {
     res.status(200).json({"status":"ok"});
 });
 
+app.use(/^(?!\/manage.*).*/, prometheus.metricsMw);
+
 const apiVersion = '1.0';
 const sigPath = '/signaling/' + apiVersion;
 
@@ -79,11 +89,13 @@ router.post('/:connectionType/connections', jsonParser, async function(req, res)
         const connectionId = await connectionManager.addConnection(req.body, connectionType, appConnectionId);
         logger.info("Connection %s created", connectionId);
         res.status(201).json({connectionId:connectionId});
+        prometheus.openConnections.inc({ connectionType: connectionType, status: "success" });
     } catch (error){
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
             logger.error(req.FCID + " : " + JSON.stringify(error));
         }
+        prometheus.openConnections.inc({ connectionType: connectionType, status: "failure" });
     }
 });
 
