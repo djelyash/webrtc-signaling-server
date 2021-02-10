@@ -12,6 +12,7 @@ const logger = logging.mainLogger;
 const { nanoid } = require("nanoid");
 const prometheus = require('prometheus-utils')(config.metrics);
 prometheus.setMetric('WebRtcOpenConnections', config.metrics.WebRtcOpenConnections.type, config.metrics.WebRtcOpenConnections.options);
+prometheus.setMetric('WebRtcUnallocatedConnections', config.metrics.WebRtcUnallocatedConnections.type, config.metrics.WebRtcUnallocatedConnections.options);
 
 
 const log4jsConfig = {
@@ -89,11 +90,12 @@ const sigPath = '/signaling/' + apiVersion;
 router.post('/:connectionType/connections', jsonParser, async function(req, res) {
     const connectionType = req.params.connectionType;
     const appConnectionId = req.query.connectionId;
-    let status = "success";
 
     try {
         const connectionId = await connectionManager.addConnection(req.body, connectionType, appConnectionId);
         logger.info("Connection %s created", connectionId);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: connectionType, status: "created"});
+        prometheus.WebRtcUnallocatedConnections.inc({ connectionType: connectionType});
         res.status(201).json({connectionId:connectionId});
     } catch (error){
         res.status(error.errorCode? error.errorCode : 503).json(error);
@@ -103,10 +105,8 @@ router.post('/:connectionType/connections', jsonParser, async function(req, res)
         }
     }
 
-    try {
-        prometheus.WebRtcOpenConnections.inc({ connectionType: connectionType, status: status});
-    }
-    catch (error) {}
+
+
 });
 
 
@@ -117,9 +117,10 @@ router.get('/connections/:connectionId/answer', async function(req, res) {
     const connectionId = req.params.connectionId;
 
     try{
-        const offerResp = await connectionManager.getOfferResponse(connectionId);
+        const resp = await connectionManager.getOfferResponse(connectionId);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: resp.connectionType, status: "offerExchanged"});
         logger.info("Connection %s answer has given, signaling part completed!", connectionId);
-        res.status(200).json(offerResp);
+        res.status(200).json(resp.offerResponse);
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
@@ -132,9 +133,10 @@ router.post('/connections/:connectionId/answer', jsonParser, async function(req,
     const connectionId = req.params.connectionId;
     const offerResp = req.body;
     try{
-        await connectionManager.saveOfferResponse(connectionId, offerResp);
+        const resp = await connectionManager.saveOfferResponse(connectionId, offerResp);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: resp.type, status: "answerReady"});
         logger.info("Connection %s got answer from peer ", connectionId);
-        res.status(201).json(offerResp);
+        res.status(201).json({});
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
@@ -146,9 +148,10 @@ router.post('/connections/:connectionId/answer', jsonParser, async function(req,
 router.get('/connections/:connectionId/offer', async function(req, res) {
     const connectionId = req.params.connectionId;
     try{
-        const offer = await connectionManager.getOffer(connectionId);
+        const resp = await connectionManager.getOffer(connectionId);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: resp.connectionType, status: "offerExchanged"});
         logger.info("Connection %s TC started webrtc connections establishment", connectionId);
-        res.status(200).json(offer);
+        res.status(200).json(resp.offer);
 
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
@@ -166,6 +169,8 @@ router.get('/:connectionType/queue', async function(req, res) {
 
     try{
         const connectionId = await connectionManager.getWaitingOffer(connectionType);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: connectionType, status: "allocated"});
+        prometheus.WebRtcUnallocatedConnections.dec({ connectionType: connectionType});
         logger.info("Connection %s allocated to TC", connectionId);
         res.status(200).json({connectionId:connectionId});
     } catch (error) {
