@@ -73,7 +73,12 @@ app.get('/manage/health',  function(req, res) {
     res.status(200).json({"status":"ok"});
 });
 
-app.use(/^(?!\/manage.*).*/, prometheus.metricsMw);
+app.get('/manage/metrics', (req, res) => {
+    const metrics = prometheus.client.register.metrics();
+    res.setHeader('Content-Type', 'text/plain');
+    res.status(200);
+    res.send(metrics);
+});
 
 const apiVersion = '1.0';
 const sigPath = '/signaling/' + apiVersion;
@@ -84,19 +89,24 @@ const sigPath = '/signaling/' + apiVersion;
 router.post('/:connectionType/connections', jsonParser, async function(req, res) {
     const connectionType = req.params.connectionType;
     const appConnectionId = req.query.connectionId;
+    let status = "success";
 
     try {
         const connectionId = await connectionManager.addConnection(req.body, connectionType, appConnectionId);
         logger.info("Connection %s created", connectionId);
         res.status(201).json({connectionId:connectionId});
-        prometheus.openConnections.inc({ connectionType: connectionType, status: "success" });
     } catch (error){
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
             logger.error(req.FCID + " : " + JSON.stringify(error));
+            status = "failure"
         }
-        prometheus.openConnections.inc({ connectionType: connectionType, status: "failure" });
     }
+
+    try {
+        prometheus.openConnections.inc({ connectionType: connectionType, status: status});
+    }
+    catch (error) {}
 });
 
 
