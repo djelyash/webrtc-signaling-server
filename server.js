@@ -51,16 +51,16 @@ app.use(bodyParser.json({ type: 'application/*+json' }));
 app.use(cors());
 
 
-app.use((req, res, next) => {
+router.use((req, res, next) => {
     const FCID = req.headers.flow_context || nanoid();
     res.set({ 'Access-Control-Allow-Origin': '*', FCID });
     const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    req.logger = logger.child({ FCID, url: decodeURIComponent(req.url), port: req.socket.localPort, clientIp });
+    req.logger = logger.child({ FCID:FCID, url: decodeURIComponent(req.url), port: req.socket.localPort, clientIp });
     req.FCID = FCID;
-    logger.info(`${req.FCID} ${req.method} ${req.originalUrl} [REQ]`);
+    req.logger.info(`${req.FCID} ${req.method} ${req.originalUrl} [REQ]`);
 
     res.on('finish', () => {
-        logger.info(`${req.FCID} ${req.method} ${req.originalUrl} ${res.statusCode} ${res.statusMessage} [RES]`);
+        req.logger.info(`${req.FCID} ${req.method} ${req.originalUrl} ${res.statusCode} ${res.statusMessage} [RES]`);
     });
 
     next()
@@ -79,7 +79,30 @@ app.get('/manage/metrics', function( req, res) {
         res.end(prometheus.client.register.metrics());
 });
 
-app.use(/^(?!\/manage.*).*/, prometheus.metricsMw);
+app.use(/^(?!\/manage.*).*/, function (req, res, next) {
+    req.startTime = Date.now();
+    req.prevBytesWritten = req.socket.bytesWritten; //for keep-alive sockets, store the bytes written before the request
+
+    function addMetrics() {
+        if (res.isMetricsAdded) {
+            return;
+        }
+        res.isMetricsAdded = true;
+        const responseTime = Date.now() - req.startTime;
+        const labels = {
+            method: req.method,
+            api: req.route.path,
+            contentType: req.headers['content-Type'],
+            httpCode: res.statusCode
+        };
+        prometheus.httpResponseDurationSeconds.observe(labels, responseTime / 1000);
+    }
+    res.on('finish', addMetrics);
+    res.on('close', addMetrics);
+    next();
+});
+
+//app.use(/^(?!\/manage.*).*/, prometheus.metricsMw);
 
 const apiVersion = '1.0';
 const sigPath = '/signaling/' + apiVersion;
@@ -92,15 +115,15 @@ router.post('/:connectionType/connections', jsonParser, async function(req, res)
     const appConnectionId = req.query.connectionId;
 
     try {
-        const connectionId = await connectionManager.addConnection(req.body, connectionType, appConnectionId);
-        logger.info("Connection %s created", connectionId);
+        const connectionId = await connectionManager.addConnection(req.body, connectionType, appConnectionId, req.logger);
+        req.logger.info("Connection %s created", connectionId);
         prometheus.WebRtcOpenConnections.inc({ connectionType: connectionType, status: "created"});
         prometheus.WebRtcUnallocatedConnections.inc({ connectionType: connectionType});
         res.status(201).json({connectionId:connectionId});
     } catch (error){
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
-            logger.error(req.FCID + " : " + JSON.stringify(error));
+            req.logger.error( JSON.stringify(error));
             status = "failure"
         }
     }
@@ -117,14 +140,14 @@ router.get('/connections/:connectionId/answer', async function(req, res) {
     const connectionId = req.params.connectionId;
 
     try{
-        const resp = await connectionManager.getOfferResponse(connectionId);
-        prometheus.WebRtcOpenConnections.inc({ connectionType: resp.connectionType, status: "offerExchanged"});
-        logger.info("Connection %s answer has given, signaling part completed!", connectionId);
+        const resp = await connectionManager.getOfferResponse(connectionId, req.logger);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: resp.connectionType, status: "answerExchanged"});
+        req.logger.debug("Connection %s answer has given, signaling part completed!", connectionId);
         res.status(200).json(resp.offerResponse);
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
-            logger.error(req.FCID + " : " + JSON.stringify(error));
+            req.logger.error(JSON.stringify(error));
         }
     }
 });
@@ -133,14 +156,14 @@ router.post('/connections/:connectionId/answer', jsonParser, async function(req,
     const connectionId = req.params.connectionId;
     const offerResp = req.body;
     try{
-        const resp = await connectionManager.saveOfferResponse(connectionId, offerResp);
+        const resp = await connectionManager.saveOfferResponse(connectionId, offerResp, req.logger);
         prometheus.WebRtcOpenConnections.inc({ connectionType: resp.type, status: "answerReady"});
-        logger.info("Connection %s got answer from peer ", connectionId);
+        req.logger.debug("Connection %s got answer from peer ", connectionId);
         res.status(201).json({});
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
-            logger.error(req.FCID + " : " + JSON.stringify(error));
+            req.logger.error(req.FCID + " : " + JSON.stringify(error));
         }
     }
 });
@@ -148,15 +171,15 @@ router.post('/connections/:connectionId/answer', jsonParser, async function(req,
 router.get('/connections/:connectionId/offer', async function(req, res) {
     const connectionId = req.params.connectionId;
     try{
-        const resp = await connectionManager.getOffer(connectionId);
+        const resp = await connectionManager.getOffer(connectionId, req.logger);
         prometheus.WebRtcOpenConnections.inc({ connectionType: resp.connectionType, status: "offerExchanged"});
-        logger.info("Connection %s TC started webrtc connections establishment", connectionId);
+        req.logger.debug("Connection %s TC started webrtc connections establishment", connectionId);
         res.status(200).json(resp.offer);
 
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
-            logger.error(req.FCID + " : " + JSON.stringify(error));
+            req.logger.error(req.FCID + " : " + JSON.stringify(error));
         }
     }
 });
@@ -168,15 +191,15 @@ router.get('/:connectionType/queue', async function(req, res) {
     const connectionType = req.params.connectionType;
 
     try{
-        const connectionId = await connectionManager.getWaitingOffer(connectionType);
+        const connectionId = await connectionManager.getWaitingOffer(connectionType, req.logger);
         prometheus.WebRtcOpenConnections.inc({ connectionType: connectionType, status: "allocated"});
         prometheus.WebRtcUnallocatedConnections.dec({ connectionType: connectionType});
-        logger.info("Connection %s allocated to TC", connectionId);
+        req.logger.debug("Connection %s allocated to TC", connectionId);
         res.status(200).json({connectionId:connectionId});
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
-            logger.error(req.FCID + " : " + JSON.stringify(error));
+            req.logger.error(req.FCID + " : " + JSON.stringify(error));
         }
 
     }
@@ -187,13 +210,13 @@ router.post('/connections/:connectionId/stop', jsonParser, async function(req, r
     const connectionId = req.params.connectionId;
 
     try{
-        const offerResp = await connectionManager.stopConnection(connectionId);
-        logger.info("Connection %s ended!", connectionId);
+        const offerResp = await connectionManager.stopConnection(connectionId, req.logger);
+        req.logger.debug("Connection %s ended!", connectionId);
         res.status(200).json(offerResp);
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
-            logger.error(req.FCID + " : " + JSON.stringify(error));
+            req.logger.error(req.FCID + " : " + JSON.stringify(error));
         }
     }
 });
@@ -235,7 +258,7 @@ router.get('/connections/:connectionId/ice', function(req, res) {
 router.get('/connections', async function(req, res) {
     let deviceId = req.query.deviceId;
     try{
-        let connectionId = await connectionManager.getConnectionIdByDeviceId(deviceId);
+        let connectionId = await connectionManager.getConnectionIdByDeviceId(deviceId, req.logger);
         res.status(200).json({connectionId: connectionId});
     }
     catch (error) {
@@ -248,7 +271,7 @@ router.put('/connections/:connectionId/debug-offer', jsonParser, async function(
     const appConnectionId = req.params.connectionId;
 
     try {
-        await connectionManager.putDebugOffer(appConnectionId, req.body);
+        await connectionManager.putDebugOffer(appConnectionId, req.body, req.logger);
         res.status(201).send();
     } catch (error){
         res.status(error.errorCode? error.errorCode : 500).json(error);
@@ -259,7 +282,7 @@ router.put('/connections/:connectionId/debug-offer', jsonParser, async function(
 router.get('/connections/:connectionId/debug-offer', async function(req, res) {
     const connectionId = req.params.connectionId;
     try{
-        const offer = await connectionManager.getDebugOffer(connectionId);
+        const offer = await connectionManager.getDebugOffer(connectionId, req.logger);
         res.status(200).json(offer);
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
@@ -271,7 +294,7 @@ router.put('/connections/:connectionId/debug-answer', jsonParser, async function
     const appConnectionId = req.params.connectionId;
 
     try {
-        await connectionManager.putDebugOfferAnswer(appConnectionId, req.body);
+        await connectionManager.putDebugOfferAnswer(appConnectionId, req.body, req.logger);
         res.status(201).send();
     } catch (error){
         res.status(error.errorCode? error.errorCode : 503).json(error);
@@ -283,7 +306,7 @@ router.get('/connections/:connectionId/debug-answer', async function(req, res) {
     const connectionId = req.params.connectionId;
 
     try{
-        const offerResp = await connectionManager.getDebugOfferResponse(connectionId);
+        const offerResp = await connectionManager.getDebugOfferResponse(connectionId, req.logger);
         res.status(200).json(offerResp);
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
@@ -295,7 +318,7 @@ router.delete('/connections/:connectionId/debug-offer', jsonParser, async functi
     const appConnectionId = req.params.connectionId;
 
     try {
-        await connectionManager.deleteDebugOffer(appConnectionId);
+        await connectionManager.deleteDebugOffer(appConnectionId, req.logger);
         res.status(200).send();
     } catch (error){
         res.status(error.errorCode? error.errorCode : 503).json(error);

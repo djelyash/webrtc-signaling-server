@@ -37,17 +37,17 @@
       }
     },
     "WebRtcUnallocatedConnections": {
-    "type": "Gauge",
-    "options": {
-      "name": "WebRtcUnallocatedConnections",
-      "help": "counter of hyperscale unallocated connections",
-      "labelNames": ["connectionType"]
+      "type": "Gauge",
+      "options": {
+        "name": "WebRtcUnallocatedConnections",
+        "help": "counter of hyperscale unallocated connections",
+        "labelNames": ["connectionType"]
+      }
     }
-  }
   },
   "logging": {
     "componentName": "signaling-server",
-    "level": "info",
+    "level": "debug",
     "silent": false,
     "humanReadable": false,
     "ignoredRoutes": ["/manage/health", "/manage/alive", "/manage/metrics"]
