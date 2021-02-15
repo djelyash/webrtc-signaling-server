@@ -210,9 +210,10 @@ router.post('/connections/:connectionId/stop', jsonParser, async function(req, r
     const connectionId = req.params.connectionId;
 
     try{
-        const offerResp = await connectionManager.stopConnection(connectionId, req.logger);
+        const connection = await connectionManager.stopConnection(connectionId, req.logger);
+        prometheus.WebRtcOpenConnections.inc({ connectionType: connection.type, status: "ended"});
         req.logger.debug("Connection %s ended!", connectionId);
-        res.status(200).json(offerResp);
+        res.status(200).json({});
     } catch (error) {
         res.status(error.errorCode? error.errorCode : 503).json(error);
         if(error.errorCode >= 500) {
